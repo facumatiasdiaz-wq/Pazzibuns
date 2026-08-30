@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cierre de turno — Planta Peña</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --verde:#1A6B40; --verde-dark:#0F4C2A; --verde-light:#EAF5EE;
+    --carbon:#1C1E1D; --crema:#F4F6F4; --linea:#D8E8DC;
+    --sutil:#6B8070; --merma:#B3261E; --alerta:#C2760F;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',sans-serif;background:var(--crema);color:var(--carbon);min-height:100vh;}
+
+  .header{
+    background:linear-gradient(135deg,#0F4C2A,#1A6B40);
+    padding:20px 20px 18px;color:#fff;
+  }
+  .brand{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;letter-spacing:.5px;}
+  .brand-sub{font-size:11px;color:#A8E0C0;letter-spacing:1.5px;text-transform:uppercase;margin-top:3px;}
+
+  .container{max-width:480px;margin:0 auto;padding:20px 16px 40px;}
+
+  .badge-sector{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:6px 14px;border-radius:24px;
+    background:var(--verde-light);color:var(--verde-dark);
+    font-size:12px;font-weight:700;letter-spacing:.5px;
+    text-transform:uppercase;margin-bottom:16px;
+  }
+
+  .card{background:#fff;border:1px solid var(--linea);border-radius:20px;padding:18px;margin-bottom:12px;}
+
+  .op-nombre{font-family:'Oswald',sans-serif;font-size:24px;font-weight:700;margin-bottom:2px;}
+  .op-codigo{font-size:13px;color:var(--sutil);font-weight:600;letter-spacing:2px;}
+  .op-fecha{font-size:12px;color:var(--sutil);margin-top:6px;}
+
+  .stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:16px 0;}
+  .stat{text-align:center;background:var(--verde-light);border-radius:16px;padding:14px 8px;}
+  .stat.merma{background:#FDEAEA;}
+  .stat-n{font-family:'Oswald',sans-serif;font-size:28px;font-weight:700;line-height:1;}
+  .stat-n.verde{color:var(--verde-dark);}
+  .stat-n.rojo{color:var(--merma);}
+  .stat-n.carbon{color:var(--carbon);}
+  .stat-l{font-size:10px;color:var(--sutil);text-transform:uppercase;letter-spacing:.5px;margin-top:4px;}
+
+  .efectividad{
+    text-align:center;padding:14px;border-radius:16px;
+    font-family:'Oswald',sans-serif;font-size:32px;font-weight:700;
+    margin-bottom:12px;
+  }
+  .efectividad.alta{background:#EAF5EE;color:var(--verde-dark);}
+  .efectividad.media{background:#FFF8EC;color:#8a4f00;}
+  .efectividad.baja{background:#FDEAEA;color:var(--merma);}
+  .efectividad-lbl{font-size:11px;font-family:'Inter';font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
+
+  .sec-title{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--sutil);margin:16px 0 8px;display:flex;align-items:center;gap:8px;}
+  .sec-title::after{content:'';flex:1;height:1px;background:var(--linea);}
+
+  .motivo-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#FDEAEA;border-radius:12px;margin-bottom:6px;}
+  .motivo-nombre{font-size:13px;font-weight:600;color:var(--merma);}
+  .motivo-val{font-family:'Oswald',sans-serif;font-size:18px;font-weight:700;color:var(--merma);}
+
+  .footer{text-align:center;font-size:11px;color:var(--sutil);margin-top:24px;}
+  .footer strong{color:var(--verde-dark);}
+
+  .loading{text-align:center;padding:60px 20px;color:var(--sutil);}
+  .loading-icon{font-size:2.5rem;margin-bottom:12px;animation:spin 1.5s linear infinite;display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .error{text-align:center;padding:40px 20px;}
+  .error-icon{font-size:2.5rem;margin-bottom:12px;}
+
+  .sector-icon{font-size:1.5rem;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="brand">🏭 PLANTA PEÑA</div>
+  <div class="brand-sub">Resumen de cierre de turno</div>
+</div>
+
+<div class="container">
+  <div id="content">
+    <div class="loading">
+      <div class="loading-icon">⏳</div>
+      <div>Cargando turno...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SECTOR_ICON = {
+  produccion:'⚙️', horno:'🔥', desmolde:'🧱', empaquetado:'📦'
+};
+const SECTOR_LABEL = {
+  produccion:'Producción', horno:'Horno', desmolde:'Desmolde', empaquetado:'Empaquetado'
+};
+
+function fmtFechaHora(iso){
+  if(!iso) return '—';
+  return new Date(iso).toLocaleString('es-AR',{
+    day:'2-digit',month:'2-digit',year:'numeric',
+    hour:'2-digit',minute:'2-digit'
+  });
+}
+
+function fmtDuracion(desde, hasta){
+  if(!desde||!hasta) return '—';
+  const ms = new Date(hasta)-new Date(desde);
+  const h = Math.floor(ms/3600000);
+  const m = Math.floor((ms%3600000)/60000);
+  return h>0 ? `${h}h ${m}min` : `${m}min`;
+}
+
+function render(t, toppings=[], insumos=[]){
+  const pct = t.efectividad ?? (t.recibidas>0?Math.round(t.entregadas/t.recibidas*100):100);
+  const clsPct = pct>=90?'alta':pct>=70?'media':'baja';
+  const sector = t.sector||'';
+  const motivos = t.motivos_merma||{};
+  const tieneMotivos = Object.keys(motivos).length>0;
+  const duracion = fmtDuracion(t.hora_inicio, t.hora_cierre);
+
+  document.getElementById('content').innerHTML = `
+    <div class="badge-sector">
+      <span class="sector-icon">${SECTOR_ICON[sector]||'🏭'}</span>
+      ${SECTOR_LABEL[sector]||sector}
+    </div>
+
+    <div class="card">
+      <div class="op-nombre">${t.operario||'—'}</div>
+      ${t.codigo_operario?`<div class="op-codigo">Código: ${t.codigo_operario}</div>`:''}
+      <div class="op-fecha">
+        🕐 Cierre: ${fmtFechaHora(t.hora_cierre)}<br>
+        ⏱️ Duración del turno: ${duracion}<br>
+        📦 Carros procesados: <strong>${t.carros_procesados||0}</strong>
+      </div>
+    </div>
+
+    <div class="efectividad ${clsPct}">
+      ${pct}%
+      <div class="efectividad-lbl">Efectividad del turno</div>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-n carbon">${t.recibidas||0}</div>
+        <div class="stat-l">Recibidas</div>
+      </div>
+      <div class="stat">
+        <div class="stat-n verde">${t.entregadas||0}</div>
+        <div class="stat-l">Entregadas</div>
+      </div>
+      <div class="stat merma">
+        <div class="stat-n rojo">${t.merma||0}</div>
+        <div class="stat-l">Merma</div>
+      </div>
+    </div>
+
+    ${tieneMotivos?`
+      <div class="sec-title">Motivos de merma</div>
+      ${Object.entries(motivos).map(([m,v])=>`
+        <div class="motivo-row">
+          <div class="motivo-nombre">${m}</div>
+          <div class="motivo-val">${v}u</div>
+        </div>`).join('')}
+    `:''}
+
+    ${toppings.length && sector==='horno' ? `
+      <div class="sec-title">🧂 Toppings utilizados</div>
+      ${toppings.map(tp=>`
+        <div class="motivo-row">
+          <div class="motivo-nombre">${tp.nombre}</div>
+          <div class="motivo-val">${Number(tp.kg).toFixed(1)} kg</div>
+        </div>`).join('')}
+    ` : ''}
+
+    ${insumos.length && sector==='empaquetado' ? `
+      <div class="sec-title">📦 Insumos utilizados</div>
+      ${insumos.map(ins=>{
+        const label = ins.tipo==='bobina_nueva'?'🧻 Bobina nueva':ins.tipo==='merma_bobina'?'🗑️ Merma bobina':'🧴 Alcohol';
+        const unit  = ins.tipo==='alcohol'?'L':'kg';
+        return `<div class="motivo-row">
+          <div class="motivo-nombre">${label}</div>
+          <div class="motivo-val">${Number(ins.valor).toFixed(1)} ${unit}</div>
+        </div>`;
+      }).join('')}
+    ` : ''}
+
+    <div class="footer">
+      Generado por <strong>Planta Peña</strong><br>
+      ${fmtFechaHora(t.hora_cierre)}
+    </div>
+  `;
+}
+
+async function cargar(){
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  const sb = params.get('sb');
+  const key = params.get('key');
+
+  if(!id||!sb||!key){
+    document.getElementById('content').innerHTML = `
+      <div class="error">
+        <div class="error-icon">⚠️</div>
+        <div style="font-weight:600;margin-bottom:8px">Enlace inválido</div>
+        <div style="font-size:13px;color:var(--sutil)">El código QR no contiene la información necesaria.</div>
+      </div>`;
+    return;
+  }
+
+  const hdrs = { 'apikey': key, 'Authorization': `Bearer ${key}` };
+  try{
+    const [resTurno, resTopp, resIns] = await Promise.all([
+      fetch(`${sb}/rest/v1/turnos?id=eq.${id}&select=*`, {headers:hdrs}),
+      fetch(`${sb}/rest/v1/topping_registros?turno_id=eq.${id}&select=*`, {headers:hdrs}),
+      fetch(`${sb}/rest/v1/insumo_registros?turno_id=eq.${id}&select=*`, {headers:hdrs}),
+    ]);
+    if(!resTurno.ok) throw new Error('HTTP '+resTurno.status);
+    const data = await resTurno.json();
+    const toppings = resTopp.ok ? await resTopp.json() : [];
+    const insumos  = resIns.ok ? await resIns.json() : [];
+    if(!data||!data.length){
+      document.getElementById('content').innerHTML = `
+        <div class="error">
+          <div class="error-icon">🔍</div>
+          <div style="font-weight:600;margin-bottom:8px">Turno no encontrado</div>
+          <div style="font-size:13px;color:var(--sutil)">El registro no existe o fue eliminado.</div>
+        </div>`;
+      return;
+    }
+    render(data[0], toppings, insumos);
+  }catch(e){
+    document.getElementById('content').innerHTML = `
+      <div class="error">
+        <div class="error-icon">❌</div>
+        <div style="font-weight:600;margin-bottom:8px">Error al cargar</div>
+        <div style="font-size:13px;color:var(--sutil)">${e.message}</div>
+      </div>`;
+  }
+}
+
+cargar();
+</script>
+</body>
+</html>
